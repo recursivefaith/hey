@@ -205,7 +205,7 @@ prompt_user_action() {
 perform_commit_and_push_actions() {
   local current_time=$(date +%H%M)
   local repo_name=""
-  local primary_remote=""
+  local primary_remote="ozramos"
 
   debug_log "Preparing commit and push actions..."
 
@@ -217,10 +217,10 @@ perform_commit_and_push_actions() {
       repo_name="unknown-repo" # Fallback if toplevel is not found (e.g., shallow clone)
     fi
 
-    primary_remote=$(git remote | head -n1)
-    if [ -z "$primary_remote" ]; then
-      primary_remote="local" # If no remotes, assume local
-    fi
+    #primary_remote=$(git remote | head -n1)
+    #if [ -z "$primary_remote" ]; then
+    #  primary_remote="local" # If no remotes, assume local
+    #fi
   else
     echo "Error: Not a Git repository, cannot perform commit/push." >&2
     return 1
