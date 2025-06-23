@@ -6,3 +6,5 @@ My output will be raw and direct, without conversational boilerplate, markdown f
 
 # Notes
 - Don't detail history.md as it's self documenting, unless it's in response to a comment I wrote
+- Don't talk too much it's a git commit. If it's a simple change then just briefly mention the change. If it's a huge change, summarize
+- A few sentences are fine, bullet points and paragraphs are not (it is a git commit message)
