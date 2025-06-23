@@ -1,0 +1,130 @@
+
+# Prompt for hey-gemini.sh v2 Script Generation
+
+This document outlines the requirements for generating `hey-gemini.sh`, a minimalist Bash agent for Google's Gemini API. The script should be clean, lean, and prioritize core functionality.
+
+## I. Core Script Objective
+
+Create a Bash script (`hey-gemini.sh`) that sends requests to the Gemini API using `curl` and `jq`. It should handle piped input as context and command-line arguments as prompts.
+
+## II. Key Functionality & Features
+
+1. **Input Handling:**
+
+   * Accept piped input. If present, wrap it in `<context>[piped_content]</context>`.
+
+   * Accept a command-line string as a prompt. If present, wrap it in `<prompt>[prompt_content]</prompt>`.
+
+   * If both are present, concatenate them in the order: context then prompt.
+
+   * Sending no input (neither piped nor prompt argument) is a valid use case and should result in an API request with an empty text part in the payload, or whatever the Gemini API expects for an "empty" prompt. *Do not add specific input validation checks that output noise if no input is given.*
+
+2. **API Interaction (using `curl`):**
+
+   * **Authentication:** Use the `$GEMINI_API_KEY` environment variable for the API key for all requests (standard and streaming).
+
+   * **Model Selection Logic:**
+     * The script will determine the model to use (`EFFECTIVE_GEMINI_MODEL`) based on the following priority:
+       1. Value from `--model 'modelname'` option, if provided.
+       2. Value from `$GEMINI_MODEL` environment variable, if set.
+       3. Default to `gemini-2.5-flash-preview-05-20` if neither of the above is set.
+     * This `EFFECTIVE_GEMINI_MODEL` will be used for both standard and streaming requests.
+
+   * **Standard Request Endpoint:** `https://generativelanguage.googleapis.com/v1beta/models/$EFFECTIVE_GEMINI_MODEL:generateContent?key=$GEMINI_API_KEY`
+
+   * **Streaming Request Endpoint:** `https://generativelanguage.googleapis.com/v1beta/models/$EFFECTIVE_GEMINI_MODEL:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`
+
+   * **Payload Structure:**
+
+     ```
+     {
+       "contents": [
+         {
+           "parts": [
+             {
+               "text": "[combined_context_and_prompt_string]"
+             }
+           ]
+         }
+         // For chat history, additional user/model parts will be prepended here.
+       ]
+     }
+     
+     ```
+
+3. **Output Handling (using `jq`):**
+
+   * **Standard Response:** Parse the JSON response using `jq`. Extract and print *only* the main generated text (e.g., `response.candidates[0].content.parts[0].text`). Avoid printing raw JSON unless in debug mode.
+
+   * **Streaming Response:**
+
+     * Use `curl --no-buffer` for streaming.
+
+     * Pipe the `curl` output. Process Server-Sent Events (SSE).
+
+     * For each SSE `data:` line, parse the JSON content using `jq` and extract and print the text part (e.g., `.candidates[0].content.parts[0].text`).
+
+     * Ensure continuous output of text chunks as they arrive.
+
+   * **Error Output:** If `curl` fails or the API returns an error status, attempt to parse any JSON error message from the API response using `jq` and print relevant error details. Otherwise, print `curl`'s error. Keep error output concise.
+
+4. **Command-line Options:**
+
+   * **`[prompt_string]` (Positional):** The main prompt.
+
+   * **`--chat`:**
+
+     * Enable a looping chat session.
+
+     * Maintain conversation history (alternating `user` and `model` roles).
+
+     * Prepend the history to the `contents` array in subsequent API calls.
+
+     * The `contents` array should look like: `[{"role":"user", "parts": [{"text":"past_user_msg1"}]}, {"role":"model", "parts": [{"text":"past_model_response1"}]}, {"role":"user", "parts": [{"text":"current_user_msg"}]}]`
+
+     * Exit chat loop if user inputs `/q`.
+
+   * **`--model 'modelname'`:** Override the default Gemini model (or the one set by `$GEMINI_MODEL`). This chosen model applies to both standard and streaming requests.
+
+   * **`--stream`:** Use the streaming API endpoint and process SSE.
+
+   * **`--debug`:**
+
+     * Print the exact `curl` command being executed (mask API key if possible, or just note its presence).
+
+     * Print the full JSON request payload.
+
+     * Print the full raw JSON response from the API before `jq` parsing.
+
+   * **`-h` or `--help`:** Display a simple usage message:
+
+     * Script purpose.
+
+     * Syntax: `hey-gemini.sh [options] [prompt]`
+
+     * Brief explanation of options.
+
+     * Mention required environment variables (`$GEMINI_API_KEY`, `$GEMINI_MODEL`).
+
+## III. Scripting Style & Structure
+
+* Use Bash.
+
+* Employ functions for modularity (e.g., `send_request`, `handle_stream`, `manage_chat_history`).
+
+* Use `getopts` for parsing command-line options.
+
+* Ensure variables are properly quoted, especially when constructing JSON or `curl` commands.
+
+* Prioritize simplicity and avoid over-engineering.
+
+## IV. Exclusions (Do Not Implement)
+
+* Interactive prompts for configuration.
+
+* Complex input validation beyond basic shell argument parsing.
+
+* Reminders about API key security or input sanitization in the script's output.
+
+* Automatic web searches or dynamic fetching of available model names. Stick to the specified defaults/overrides.
+

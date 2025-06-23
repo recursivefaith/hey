@@ -1,0 +1,23 @@
+# contextualize.sh
+
+>>$ $HEY/utils/parse.sh.qrx $HEY/hey.sh
+
+# Usage
+  
+```sh
+./contextualize.sh [OPTIONS] <FILE_OR_DIR_PATHS...>
+```
+
+# Objective
+
+The `contextualize.sh` script is designed to process specified files and files within specified directories (non-recursively, `maxdepth 1`). It filters items based on a priority system: explicit includes, explicit ignores, and default excludes. The content of each processed file is wrapped in `<file path="THE_FILE_PATH">...</file>` tags, and the entire output is enclosed within `<context>...</context>` tags. Warnings or errors are printed to `stderr`.
+
+# Agent Instructions
+
+Your task is to ensure the `contextualize.sh` script, located at `contextualize.sh` in the provided context, is a complete and robust implementation of the functionality described above.
+
+1.  **Review the Implementation:** Carefully review the provided `contextualize.sh` script against the detailed specifications, including configuration (`default_exclude_patterns`), argument parsing (`--ignore`, `--include`), helper functions (`should_process`, `process_file`), and main logic.
+2.  **Verify Robustness and Best Practices:** Check for adherence to Bash scripting best practices (e.g., proper quoting, use of `local` variables, error handling, `#!/bin/bash` shebang, `stderr` for warnings).
+3.  **Update if Necessary:** If any discrepancies are found between the script's current implementation and this specification, or if improvements for robustness, error handling, or performance can be made, update the `contextualize.sh` script accordingly.
+4.  **Final Goal:** The ultimate goal is for `contextualize.sh` to fully meet all specified requirements and be a production-ready Bash script.
+

@@ -1,0 +1,99 @@
+# Prompt for git.sh Script Generation
+
+This document outlines the requirements for generating `git.sh`, a Bash script designed to assist with crafting and executing Git commit messages, and subsequently pushing changes to all remotes, by leveraging the `hey-gemini.sh` script (referred to as `hey`).
+
+## I. Core Script Objective
+
+Create a Bash script (`git.sh`) that:
+1. Gathers context from `git diff` and a history file.
+2. Uses the `hey` command to generate a summary of changes.
+3. Allows the user to review, accept, regenerate, or cancel the generated message.
+4. If accepted, appends the commit message details to a specified history file, stages current changes, executes `git commit` with the message, and then attempts to `git push` to all configured remotes.
+
+## II. Key Functionality & Features
+
+1.  **Initial Setup & Input Gathering:**
+    * **Environment Variable Check:**
+        * Verify that the `$HISTORY` environment variable is set. If not, print an error and exit.
+        * The `$GEMINI_API_KEY` is implicitly required by `hey` but `git.sh` does not need to check for it directly.
+    * **History File:**
+        * Read the content of the file specified by `$HISTORY`. If the file doesn't exist or is empty, treat its content as empty.
+    * **Git Diff:**
+        * Execute `git diff HEAD` to get staged and unstaged changes from the last commit. Store the output. If `git diff HEAD` fails (e.g., not a git repo, or no changes), print an error or appropriate message and exit gracefully.
+    * **Optional User Prefix:**
+        * Accept an optional positional command-line argument. This will be treated as a user-provided prefix for the commit message.
+
+2.  **Commit Message Generation (using `hey`):**
+    * **Input Construction for `hey`:**
+        * The content to be piped to `hey` should be formatted as:
+            ```
+            <devlog>[CONTENT_OF_HISTORY_FILE]</devlog>
+            <changes>[OUTPUT_OF_GIT_DIFF_HEAD]</changes>
+            ```
+        * The prompt argument to be passed to `hey` is: `"briefly summarize the stated changes. Your output is outputted directly so dont escape etc"`
+    * **Executing `hey`:**
+        * Call the `hey` command, piping the constructed input and providing the specified prompt.
+        * If the `--debug` flag is passed to `git.sh`, also pass `--debug` to the `hey` command.
+        * Capture the output from `hey` (the AI-generated summary).
+
+3.  **User Interaction & Message Refinement:**
+    * **Display Proposed Message:**
+        * Clear the screen or provide visual separation.
+        * Print "Proposed commit message:"
+        * If an optional user prefix was provided, print it.
+        * Print the AI-generated summary received from `hey`.
+    * **User Choice:**
+        * Prompt the user: `(A)ccept, (R)egenerate, (C)ancel? ` (Case-insensitive input for A, R, C).
+        * **(A)ccept:** Proceed to "Action on Acceptance".
+        * **(R)egenerate:** Re-execute the `hey` command (as in step II.2) and re-display the new proposed message, then prompt again.
+        * **(C)ancel:** Print "Commit message generation cancelled. No commit or push performed." and exit.
+        * Loop until 'A' or 'C' is chosen.
+
+4.  **Action on Acceptance (if user chooses 'A'):**
+    * **Timestamp:** Get the current time in `HHMM` (24-hour) format (e.g., `date +%H%M`).
+    * **Repository Identifier:**
+        * Attempt to get the primary remote name (e.g., `origin`) using `git remote | head -n1`. If no remote, use "local".
+        * Get the repository directory name using `basename $(git rev-parse --show-toplevel)`.
+        * Combine them as `[primary_remote_name_or_local]/[repo_directory_name]`.
+    * **Final Commit Message Assembly:** Combine the `[Optional User Prefix]` (if any) and the accepted `[AI Generated Summary]`.
+    * **Append to History File:**
+        * Append a new line to the file specified by `$HISTORY` in the format:
+            `HHMM [repository_identifier] [Final Commit Message]`
+        * If the history file does not exist, create it.
+    * **Stage Changes:**
+        * Execute `git add .` to stage all current changes in the working directory. Handle potential errors from this command. If it fails, print an error and stop before committing.
+    * **Execute Commit:**
+        * Execute `git commit -m "[Final Commit Message]"`.
+        * Display the output of the `git commit` command. If it fails, print an error and stop before pushing.
+    * **Push to Remotes:**
+        * Get a list of all configured remote names using `git remote`.
+        * If remotes exist:
+            * For each remote name in the list:
+                * Execute `git push [remote_name]`.
+                * Display the output of the `git push` command.
+                * If a push to a specific remote fails, print a warning but continue to try pushing to other remotes.
+        * If no remotes exist, print a message like "No remotes configured to push to."
+    * Print a final confirmation message, e.g., "Commit successful. Push attempted to all remotes. Details appended to history." or an error message if staging/commit failed.
+
+5.  **Command-line Options:**
+    * `[optional_message_prefix]` (Positional argument, optional): A string to prefix the AI-generated commit summary.
+    * `--debug`: Enable debug logging for `git.sh` (e.g., print intermediate values, commands being run). If `git.sh` is in debug mode, it should also call `hey` with its `--debug` flag.
+    * `-h`, `--help`: Display a help message explaining usage, the `HISTORY` environment variable, and options.
+
+## III. Environment Variables
+
+* **`HISTORY` (Required):** Path to the commit history log file that `git.sh` will read from and append to.
+* (Implicit: `GEMINI_API_KEY`, `GEMINI_MODEL` for the underlying `hey` command).
+
+## IV. Scripting Style & Structure
+
+* Use Bash.
+* Employ functions for modularity (e.g., `get_git_diff`, `generate_summary_with_hey`, `prompt_user_action`, `perform_commit_and_push_actions`).
+* Use `getopts` for parsing command-line options (`--debug`, `-h`). The positional argument should be handled after `getopts`.
+* Ensure variables are properly quoted.
+* Prioritize clarity and robustness for the defined scope.
+* Include error handling for external commands like `git`, `date`, `hey`.
+
+## V. Exclusions (Do Not Implement)
+* (No specific exclusions related to core git actions anymore; script now handles staging, commit, and push)
+

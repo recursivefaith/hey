@@ -1,0 +1,9 @@
+# Markdown renderer
+
+## Dependencies
+- marked
+- marked-terminal
+
+## Features
+- Accept piped content
+- Render streaming data

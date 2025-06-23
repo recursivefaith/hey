@@ -1,0 +1,32 @@
+# parse.sh [content]
+extracontext | parse.sh [optionalcontent]
+
+```qrx
+context $ME/context/epiphany/* $HEY/hey.sh.qrx $HEY/utils/contextualize.sh.qrx $HEY/utils/contextualize.sh
+```
+
+# Goals
+[ ] Can accept piped content
+[ ] Can accept content as argument
+[ ] If both piped and optional are used, concatenate piped first with argument after
+[ ] Finally, output the parsed content to terminal
+
+# Notes
+The goal is to search for lines starting with >>$, using awk, then running the code contained in that line and outputting the run content in its place
+
+# Example
+If the following exists:
+
+  ```qrx
+  parse file
+  ```
+
+It will inject the output of the `history` command into that line, replacing that line and pushing the rest of the content down
+
+# Remember
+- For now just focus on single lines
+- Multiple lines in a file are fine
+- Be aware that some commands may take a while to process
+- YOU MUST USE AWK
+- must be ```qrx not <qrx> blocks
+- must be from literal start of line, otherwise ```qrx in nested or middle of sentence would trigger it

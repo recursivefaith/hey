@@ -1,0 +1,23 @@
+# search.sh [prompt]
+
+```qrx
+context hey/chats/250604-1315.chat hey/hey.sh.qrx research/Bash\ Deep\ Research\ Agent\ Design_.md
+```
+
+# Usage
+  
+```sh
+context news.md | search.sh 'verify facts' --chat --markdown --depth
+```
+
+`search.sh` performs a search given some prompt and context. any additional parameters are passed to `hey`
+
+So search.sh is basically a wrapper for hey.sh but with intermidiary step that extracts URLs from the context, performs n-search depths
+
+# Goals
+[ ] Search loop
+  [ ] Parse out obvious links
+  [ ] Create list of search terms
+  [ ] Summarize results
+  [ ] Break loop when done
+[ ] Shows progress or loader

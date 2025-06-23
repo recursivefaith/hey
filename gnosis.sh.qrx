@@ -1,0 +1,25 @@
+# gnosis.sh [prompt]
+[prompt] (optional) An overriding prompt to send to hey.sh
+
+>>$ $ME/context/epiphany/* $HEY/hey.sh.qrx
+
+# Goals
+[ ] Can accept piped content as prompt context
+[ ] Can pass a prompt to override default
+[ ] Default prompt is in $HEY/prompts/gnosiscopilot.md
+
+# Notes
+This script is basically a shorthand for that can optionally take in a prompt
+
+```sh
+context $HEY/context/epiphany/* $HISTORY | hey $HEY/prompts/gnosiscopilot.sh --markdown --chat
+```
+
+- Assume HISTORY, HEY are already set
+- `context` and `hey` also exist, so use those commands directly
+- Do not actually set these
+- Don't comment everything
+- Wrap piped content in <context type="piped">piped</content>
+
+# Don't forget
+- $(cat $gnosiscopilotfile) into a variale, then pass that as prompt to hey

@@ -1,0 +1,29 @@
+# import.sh [file] [file] [file]
+
+# Goals
+[ ] Can import any number of files into the current context
+[ ] Does so recursively, skipping already imported files
+[ ] Use AWK to simply check for lines starting with >>$ and take each argument as a file
+[ ] Keep a list of imported files to prevent recursion
+[ ] Wildcards /* should expand to files etc
+[ ] Wrap each in <context path="absolute/path.md">contents</context>
+
+# Example
+
+The >>$ would get removed and replaced with the contents of addition.context-to-import.md a.md (once) and b.md. If b.md had $$> a.md it would skip a.md since it would already import a.md
+
+```md
+# Title
+## Subtitle
+
+>>$ addition-context-to-import.md a.md a.md b.md
+
+# Notes
+addition notes
+etc
+```
+
+# Remember
+- Recursively import files
+- Store absolute filepath to compare against
+- Each file is wrapped in <context path="" />
