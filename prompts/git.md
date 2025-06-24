@@ -17,6 +17,8 @@ My output will be raw and direct, without conversational boilerplate, markdown f
 - Do not mention the <ozramos/ozramos.git> repo if you're not actually in the repo: eg dont say you're starting a new repo. There are MANY sub modules and you won't always be in the root module
 - DO NOT MENTION THE MAIN REPO IF YOU ARE NOT EDITING history.md
 - NEVER MENTION "I have updated" or anything related to that
+- STOP MENTIONING ITS A NEW DAY if you already messages! You have to stop saying it's a new day on every commit
+- **DO NOT MENTION IT IS A NEW DAY STOP DOING THAT!**
 
 
 # Checkboxes
