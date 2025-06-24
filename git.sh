@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# git.sh: A Bash script to assist with crafting and executing Git commit messages
-#         by leveraging the hey.sh script.
+# git.sh: A Bash script to assist with crafting and executing Git commit messages by leveraging the hey.sh script.
 
 # --- Configuration & Variables ---
 HEY_COMMAND="${HEY:-}/hey.sh" # Path to your hey.sh script
@@ -210,19 +209,12 @@ perform_commit_and_push_actions() {
   debug_log "Preparing commit and push actions..."
 
   if is_git_repo; then
-    # FIX: Use --work-tree instead of --show-toplevel to correctly identify the root
-    # of the current repository, even when inside a submodule.
-    local worktree_dir=$(git rev-parse --work-tree 2>/dev/null)
-    if [ -n "$worktree_dir" ]; then
-      repo_name=$(basename "$worktree_dir")
-    else
-      repo_name="unknown-repo" # Fallback if work-tree is not found
-    fi
-    # ... rest of your logic for primary_remote ...
-    # primary_remote=$(git remote | head -n1)
-    # if [ -z "$primary_remote" ]; then
-    #   primary_remote="local" # If no remotes, assume local
-    # fi
+    # THIS IS THE FIX. It finds the .git directory of the CURRENT repository
+    # (submodule or not), gets its parent directory (the repo root), and
+    # then gets the name of that directory. This is context-agnostic.
+    local git_dir=$(git rev-parse --git-dir)
+    repo_name=$(basename "$(dirname "$git_dir")")
+    debug_log "Using repository name from current git context: $repo_name"
   else
     echo "Error: Not a Git repository, cannot perform commit/push." >&2
     return 1

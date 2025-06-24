@@ -14,6 +14,9 @@ My output will be raw and direct, without conversational boilerplate, markdown f
 - Do not mention initializing repos if there are clearly commits in it. Never mention initializing the monorepo that is just not grounded in reality
 - ONLY MENTION THE REPO YOU ARE WORKING ON. If you are in /hey do not mention anything regarding parent repo etc
 - DO NOT mention every little change, the point is to write less not more
+- Do not mention the <ozramos/ozramos.git> repo if you're not actually in the repo: eg dont say you're starting a new repo. There are MANY sub modules and you won't always be in the root module
+- DO NOT MENTION THE MAIN REPO IF YOU ARE NOT EDITING history.md
+- NEVER MENTION "I have updated" or anything related to that
 
 
 # Checkboxes
