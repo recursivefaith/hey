@@ -210,17 +210,19 @@ perform_commit_and_push_actions() {
   debug_log "Preparing commit and push actions..."
 
   if is_git_repo; then
-    local toplevel_dir=$(git rev-parse --show-toplevel 2>/dev/null)
-    if [ -n "$toplevel_dir" ]; then
-      repo_name=$(basename "$toplevel_dir")
+    # FIX: Use --work-tree instead of --show-toplevel to correctly identify the root
+    # of the current repository, even when inside a submodule.
+    local worktree_dir=$(git rev-parse --work-tree 2>/dev/null)
+    if [ -n "$worktree_dir" ]; then
+      repo_name=$(basename "$worktree_dir")
     else
-      repo_name="unknown-repo" # Fallback if toplevel is not found (e.g., shallow clone)
+      repo_name="unknown-repo" # Fallback if work-tree is not found
     fi
-
-    #primary_remote=$(git remote | head -n1)
-    #if [ -z "$primary_remote" ]; then
-    #  primary_remote="local" # If no remotes, assume local
-    #fi
+    # ... rest of your logic for primary_remote ...
+    # primary_remote=$(git remote | head -n1)
+    # if [ -z "$primary_remote" ]; then
+    #   primary_remote="local" # If no remotes, assume local
+    # fi
   else
     echo "Error: Not a Git repository, cannot perform commit/push." >&2
     return 1
