@@ -207,13 +207,11 @@ perform_commit_and_push_actions() {
   local primary_remote="ozramos"
 
   debug_log "Preparing commit and push actions..."
-
   if is_git_repo; then
-    # THIS IS THE FIX. It finds the .git directory of the CURRENT repository
-    # (submodule or not), gets its parent directory (the repo root), and
-    # then gets the name of that directory. This is context-agnostic.
-    local git_dir=$(git rev-parse --git-dir)
-    repo_name=$(basename "$(dirname "$git_dir")")
+    # THIS IS THE FIX: Use `git rev-parse --show-toplevel` to get the root directory
+    # of the current repository (works correctly for main repos and submodules),
+    # then use `basename` to extract its name.
+    repo_name=$(basename "$(git rev-parse --show-toplevel)")
     debug_log "Using repository name from current git context: $repo_name"
   else
     echo "Error: Not a Git repository, cannot perform commit/push." >&2
