@@ -241,7 +241,7 @@ perform_commit_and_push_actions() {
   # Replace newlines in the message for a single line in the history entry.
   # Use space as replacement for better readability in simple log file.
   local history_entry_message_sanitized=$(echo "$final_commit_message" | tr '\n' ' ' | sed 's/  */ /g')
-  local history_entry="${current_time} \`<${repo_identifier}.git>\` ${history_entry_message_sanitized}"
+  local history_entry="**${current_time}** \`<${repo_identifier}.git>\` ${history_entry_message_sanitized}"
   
   debug_log "Appending to history: '$history_entry' to '$HISTORY_FILE'"
   echo "$history_entry" >> "$HISTORY_FILE" || { echo "Error: Failed to append to history file '$HISTORY_FILE'. Check permissions." >&2; return 1; }
