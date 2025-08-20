@@ -5,6 +5,7 @@
 # --- Configuration & Variables ---
 HEY_COMMAND="${HEY:-}/hey.sh" # Path to your hey.sh script
 HISTORY_FILE="${HISTORY:-}" # Required environment variable
+CHANGELOG_FILE="${CHANGELOG:-}" # Required environment variable
 DEBUG_MODE=false
 SHOW_HELP=false
 MESSAGE_PREFIX=""
@@ -204,7 +205,7 @@ prompt_user_action() {
 perform_commit_and_push_actions() {
   local current_time=$(date +%H%M)
   local repo_name=""
-  local primary_remote="ozramos"
+  local primary_remote="recursivefaith"
 
   debug_log "Preparing commit and push actions..."
   if is_git_repo; then
@@ -240,10 +241,13 @@ perform_commit_and_push_actions() {
   # Replace newlines in the message for a single line in the history entry.
   # Use space as replacement for better readability in simple log file.
   local history_entry_message_sanitized=$(echo "$final_commit_message" | tr '\n' ' ' | sed 's/  */ /g')
-  local history_entry="${current_time} <${repo_identifier}.git> ${history_entry_message_sanitized}"
+  local history_entry="${current_time} \`<${repo_identifier}.git>\` ${history_entry_message_sanitized}"
   
   debug_log "Appending to history: '$history_entry' to '$HISTORY_FILE'"
   echo "$history_entry" >> "$HISTORY_FILE" || { echo "Error: Failed to append to history file '$HISTORY_FILE'. Check permissions." >&2; return 1; }
+  echo "" >> "$HISTORY_FILE" || { echo "Error: Failed to append to history file '$HISTORY_FILE'. Check permissions." >&2; return 1; }
+  echo "$history_entry" >> "$CHANGELOG_FILE" || { echo "Error: Failed to append to changelog file '$CHANGELOG_FILE'. Check permissions." >&2; return 1; }
+  echo "" >> "$CHANGELOG_FILE" || { echo "Error: Failed to append to changelog file '$CHANGELOG_FILE'. Check permissions." >&2; return 1; }
 
   # Stage changes (including the updated history file)
   echo ""

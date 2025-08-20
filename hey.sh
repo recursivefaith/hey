@@ -14,6 +14,7 @@ COLOR_BRIGHT_BLUE='\033[0;94m'  # For "You:" prompt label
 COLOR_RESET='\033[0m'           # Reset color
 
 # --- Configuration ---
+source ~/.ENV
 DEFAULT_GEMINI_MODEL="gemini-2.5-flash-preview-05-20"
 GEMINI_API_KEY="${GEMINI_API_KEY:-}"
 GEMINI_MODEL_ENV="${GEMINI_MODEL:-}"
