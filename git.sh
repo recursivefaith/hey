@@ -29,6 +29,7 @@ Options:
 
 Environment Variables:
   HISTORY     (Required) Your commit history log file path.
+  CHANGELOG   (Required) Your changelog log file path.
   GEMINI_API_KEY (Required by $HEY_COMMAND) Your Google Gemini API key.
   GEMINI_MODEL   (Optional, for $HEY_COMMAND) Default Gemini model to use.
 EOF
@@ -209,7 +210,7 @@ perform_commit_and_push_actions() {
 
   debug_log "Preparing commit and push actions..."
   if is_git_repo; then
-    # THIS IS THE FIX: Use `git rev-parse --show-toplevel` to get the root directory
+    # Use `git rev-parse --show-toplevel` to get the root directory
     # of the current repository (works correctly for main repos and submodules),
     # then use `basename` to extract its name.
     repo_name=$(basename "$(git rev-parse --show-toplevel)")
@@ -243,11 +244,86 @@ perform_commit_and_push_actions() {
   local history_entry_message_sanitized=$(echo "$final_commit_message" | tr '\n' ' ' | sed 's/  */ /g')
   local history_entry="**${current_time}** \`<${repo_identifier}.git>\` ${history_entry_message_sanitized}"
   
-  debug_log "Appending to history: '$history_entry' to '$HISTORY_FILE'"
-  echo "$history_entry" >> "$HISTORY_FILE" || { echo "Error: Failed to append to history file '$HISTORY_FILE'. Check permissions." >&2; return 1; }
-  echo "" >> "$HISTORY_FILE" || { echo "Error: Failed to append to history file '$HISTORY_FILE'. Check permissions." >&2; return 1; }
-  echo "$history_entry" >> "$CHANGELOG_FILE" || { echo "Error: Failed to append to changelog file '$CHANGELOG_FILE'. Check permissions." >&2; return 1; }
-  echo "" >> "$CHANGELOG_FILE" || { echo "Error: Failed to append to changelog file '$CHANGELOG_FILE'. Check permissions." >&2; return 1; }
+  # --- Start of user requested insertion logic (using awk) ---
+  local marker_pattern="<hey add git messages above this line above />"
+
+  # Awk script to find the marker, scan upward for the first non-empty line, and insert below it.
+  # Removed all leading whitespace from each line of the awk script definition for robustness.
+  local awk_script='
+BEGIN {
+    marker_pattern = ARGV[1]; # Get marker pattern from argument
+    new_entry = ARGV[2];      # Get new entry from argument
+    delete ARGV[1];           # Remove consumed arguments
+    delete ARGV[2];           # Remove consumed arguments
+    found_marker = 0
+    line_count = 0
+}
+
+{
+    line_count++;
+    lines[line_count] = $0
+    if ($0 == marker_pattern) {
+        marker_line_num = line_count
+        found_marker = 1
+    }
+}
+
+END {
+    if (!found_marker) {
+        print "Error: Marker \x27" marker_pattern "\x27 not found. Cannot insert." > "/dev/stderr"
+        exit 1
+    }
+
+    # Find the first non-empty line above the marker
+    insert_after_line_num = 0
+    for (i = marker_line_num - 1; i >= 1; i--) {
+        # Check for non-empty line (not just spaces)
+        if (lines[i] !~ /^[[:space:]]*$/) {
+            insert_after_line_num = i
+            break
+        }
+    }
+
+    # Reconstruct and print the file with the new_entry inserted
+    if (insert_after_line_num == 0) {
+        # Insert at the very beginning if no non-empty line found above marker
+        print new_entry
+        for (i = 1; i <= line_count; i++) {
+            print lines[i]
+        }
+    } else {
+        # Insert after the found non-empty line
+        for (i = 1; i <= line_count; i++) {
+            print lines[i]
+            if (i == insert_after_line_num) {
+                print new_entry
+            }
+        }
+    }
+}
+'
+
+  debug_log "Attempting to insert history entry: '$history_entry' into '$HISTORY_FILE' using awk."
+  # Use awk with temporary files for cross-platform compatibility for in-place editing.
+  awk "$awk_script" "$marker_pattern" "$history_entry" "$HISTORY_FILE" > "${HISTORY_FILE}.tmp"
+  if [ $? -ne 0 ]; then
+    echo "Error: Awk failed for history file '$HISTORY_FILE'. Check marker or permissions." >&2
+    rm -f "${HISTORY_FILE}.tmp" # Clean up temporary file
+    return 1
+  fi
+  mv "${HISTORY_FILE}.tmp" "$HISTORY_FILE" || { echo "Error: Failed to move temporary history file. Permissions issue?" >&2; return 1; }
+  debug_log "History entry successfully inserted into '$HISTORY_FILE'."
+
+  debug_log "Attempting to insert history entry: '$history_entry' into '$CHANGELOG_FILE' using awk."
+  awk "$awk_script" "$marker_pattern" "$history_entry" "$CHANGELOG_FILE" > "${CHANGELOG_FILE}.tmp"
+  if [ $? -ne 0 ]; then
+    echo "Error: Awk failed for changelog file '$CHANGELOG_FILE'. Check marker or permissions." >&2
+    rm -f "${CHANGELOG_FILE}.tmp" # Clean up temporary file
+    return 1
+  fi
+  mv "${CHANGELOG_FILE}.tmp" "$CHANGELOG_FILE" || { echo "Error: Failed to move temporary changelog file. Permissions issue?" >&2; return 1; }
+  debug_log "History entry successfully inserted into '$CHANGELOG_FILE'."
+  # --- End of user requested insertion logic ---
 
   # Stage changes (including the updated history file)
   echo ""
@@ -351,6 +427,13 @@ if [ -z "$HISTORY_FILE" ]; then
   exit 1
 fi
 
+# Validate CHANGELOG environment variable
+if [ -z "$CHANGELOG_FILE" ]; then
+  echo "Error: CHANGELOG environment variable is not set. Please set it to your changelog file." >&2
+  show_help
+  exit 1
+fi
+
 # Pre-checks for required commands
 if ! command -v "$HEY_COMMAND" &>/dev/null; then
     echo "Error: '$HEY_COMMAND' command not found. Please ensure it's in your PATH." >&2
@@ -366,6 +449,13 @@ if ! command -v jq &>/dev/null; then
     echo "       The '$HEY_COMMAND' script requires 'jq' for JSON processing." >&2
     exit 1
 fi
+# `awk` is now used for in-place editing logic.
+if ! command -v awk &>/dev/null; then
+    echo "Error: 'awk' command not found. Please ensure it's in your PATH." >&2
+    echo "       The 'git.sh' script requires 'awk' for modifying history/changelog files." >&2
+    exit 1
+fi
+
 
 # Gather necessary input (history log and git diff)
 read_history_file
@@ -390,3 +480,4 @@ if ! perform_commit_and_push_actions; then
 fi
 
 exit 0
+
