@@ -245,69 +245,60 @@ perform_commit_and_push_actions() {
   local history_entry="**${current_time}** \`<${repo_identifier}.git>\` ${history_entry_message_sanitized}"
   
   # --- Start of user requested insertion logic (using awk) ---
-  local marker_pattern="<hey add git messages above this line above />"
-
-  # Awk script to find the marker, scan upward for the first non-empty line, and insert below it.
-  # Removed all leading whitespace from each line of the awk script definition for robustness.
+  # Awk script to find the "---" line followed by a "#" heading, and insert the new entry below it.
+  # If no such marker sequence is found, the entry is appended to the end of the file.
   local awk_script='
 BEGIN {
-    marker_pattern = ARGV[1]; # Get marker pattern from argument
-    new_entry = ARGV[2];      # Get new entry from argument
-    delete ARGV[1];           # Remove consumed arguments
-    delete ARGV[2];           # Remove consumed arguments
-    found_marker = 0
+    new_entry = ARGV[1];      # Get new entry from argument
+    delete ARGV[1];           # Remove consumed argument
+    found_marker_sequence = 0
+    insert_after_line_num = 0
     line_count = 0
+    dashes_line_num = 0 # To store the line number of "---"
 }
 
 {
     line_count++;
     lines[line_count] = $0
-    if ($0 == marker_pattern) {
-        marker_line_num = line_count
-        found_marker = 1
+
+    # Check for a line containing exactly "---" (with optional surrounding spaces)
+    if ($0 ~ /^[[:space:]]*---[[:space:]]*$/) {
+        dashes_line_num = line_count
+    } else if (dashes_line_num == line_count - 1 && $0 ~ /^[[:space:]]*#[[:graph:]]/) {
+        # This means the previous line was "---" and this is a heading line.
+        # This is our insertion point.
+        insert_after_line_num = line_count
+        found_marker_sequence = 1
+        dashes_line_num = 0 # Reset so it doesn''t try to match another heading for this "---"
+    } else { # Merged onto one line to avoid bash parsing issues.
+        dashes_line_num = 0 # Reset if the "---" wasn''t followed by a heading
     }
 }
 
 END {
-    if (!found_marker) {
-        print "Error: Marker \x27" marker_pattern "\x27 not found. Cannot insert." > "/dev/stderr"
-        exit 1
-    }
-
-    # Find the first non-empty line above the marker
-    insert_after_line_num = 0
-    for (i = marker_line_num - 1; i >= 1; i--) {
-        # Check for non-empty line (not just spaces)
-        if (lines[i] !~ /^[[:space:]]*$/) {
-            insert_after_line_num = i
-            break
-        }
-    }
-
-    # Reconstruct and print the file with the new_entry inserted
-    if (insert_after_line_num == 0) {
-        # Insert at the very beginning if no non-empty line found above marker
-        print new_entry
-        for (i = 1; i <= line_count; i++) {
-            print lines[i]
-        }
-    } else {
-        # Insert after the found non-empty line
+    # If a marker sequence was found, insert after the identified heading line.
+    if (found_marker_sequence) {
         for (i = 1; i <= line_count; i++) {
             print lines[i]
             if (i == insert_after_line_num) {
                 print new_entry
             }
         }
+    } else {
+        # If no marker sequence was found, append to the end of the file.
+        for (i = 1; i <= line_count; i++) {
+            print lines[i]
+        }
+        print new_entry
     }
 }
 '
 
   debug_log "Attempting to insert history entry: '$history_entry' into '$HISTORY_FILE' using awk."
   # Use awk with temporary files for cross-platform compatibility for in-place editing.
-  awk "$awk_script" "$marker_pattern" "$history_entry" "$HISTORY_FILE" > "${HISTORY_FILE}.tmp"
+  awk "$awk_script" "$history_entry" "$HISTORY_FILE" > "${HISTORY_FILE}.tmp"
   if [ $? -ne 0 ]; then
-    echo "Error: Awk failed for history file '$HISTORY_FILE'. Check marker or permissions." >&2
+    echo "Error: Awk failed for history file '$HISTORY_FILE'. Check file content/format or permissions." >&2
     rm -f "${HISTORY_FILE}.tmp" # Clean up temporary file
     return 1
   fi
@@ -315,9 +306,9 @@ END {
   debug_log "History entry successfully inserted into '$HISTORY_FILE'."
 
   debug_log "Attempting to insert history entry: '$history_entry' into '$CHANGELOG_FILE' using awk."
-  awk "$awk_script" "$marker_pattern" "$history_entry" "$CHANGELOG_FILE" > "${CHANGELOG_FILE}.tmp"
+  awk "$awk_script" "$history_entry" "$CHANGELOG_FILE" > "${CHANGELOG_FILE}.tmp"
   if [ $? -ne 0 ]; then
-    echo "Error: Awk failed for changelog file '$CHANGELOG_FILE'. Check marker or permissions." >&2
+    echo "Error: Awk failed for changelog file '$CHANGELOG_FILE'. Check file content/format or permissions." >&2
     rm -f "${CHANGELOG_FILE}.tmp" # Clean up temporary file
     return 1
   fi
