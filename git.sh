@@ -91,7 +91,7 @@ get_git_diff() {
   if [ -z "$GIT_DIFF_OUTPUT" ]; then
       echo "Error: Could not retrieve meaningful git diff output after temporary staging." >&2
       # This can happen if 'git add .' was performed but the resulting staged state
-      # yields no meaningful diff (e.g., adding an empty file, or only whitespace changes).
+      # yields no meaningful diff (e.e., adding an empty file, or only whitespace changes).
       # The initial 'git status' check should prevent most cases of no changes.
       return 1
   fi
@@ -245,7 +245,7 @@ perform_commit_and_push_actions() {
   local history_entry="**${current_time}** \`<${repo_identifier}.git>\` ${history_entry_message_sanitized}"
   
   # --- Start of user requested insertion logic (using awk) ---
-  # Awk script to find the "---" line immediately followed by a "#" heading,
+  # Awk script to find the "---" line followed by a "#" heading (with optional empty lines in between),
   # and insert the new entry BEFORE the "---" line.
   # If no such marker sequence is found, the entry is appended to the end of the file.
   local awk_script='
@@ -255,26 +255,31 @@ BEGIN {
     found_marker_sequence = 0
     insert_at_line_num = 0 # This will be the line number *before* which to insert
     line_count = 0
-    prev_line_was_dashes = 0 # Flag to check if previous line was "---"
+    dashes_line_num = 0 # To store the line number of "---"
 }
 
 {
     line_count++;
     lines[line_count] = $0
 
-    # Check if the current line is a heading AND the previous line was "---"
-    if (prev_line_was_dashes == 1 && $0 ~ /^[[:space:]]*#[[:graph:]]/) {
-        # The marker sequence is found: "---" (at line_count - 1) followed by heading (at line_count)
-        # We want to insert *before* the "---" line, so insert_at_line_num should be (line_count - 1)
-        insert_at_line_num = line_count - 1
+    # If current line is "---", record its line number
+    if ($0 ~ /^[[:space:]]*---[[:space:]]*$/) {
+        dashes_line_num = line_count
+    }
+    # If dashes were previously found, and current line is a heading
+    # Also allows for empty lines between "---" and the heading.
+    else if (dashes_line_num > 0 && $0 ~ /^[[:space:]]*#.*/) {
+        # Sequence found: "---" (at dashes_line_num) followed by heading (at line_count)
+        # We want to insert *before* the "---" line, so insert_at_line_num is dashes_line_num
+        insert_at_line_num = dashes_line_num
         found_marker_sequence = 1
-        prev_line_was_dashes = 0 # Reset flag once sequence found
-    } else if ($0 ~ /^[[:space:]]*---[[:space:]]*$/) {
-        # Current line is "---", set flag for next iteration
-        prev_line_was_dashes = 1
-    } else {
-        # Neither a heading after "---" nor a "---" itself, reset flag
-        prev_line_was_dashes = 0
+        dashes_line_num = 0 # Reset after finding sequence
+    }
+    # If the current line is NOT empty and NOT a dash line, AND we previously saw dashes,
+    # it means the sequence is broken, so reset dashes_line_num.
+    # This ensures that only empty lines are allowed between "---" and "# Heading".
+    else if ($0 !~ /^[[:space:]]*$/ && dashes_line_num > 0 && $0 !~ /^[[:space:]]*---[[:space:]]*$/) {
+        dashes_line_num = 0
     }
 }
 
