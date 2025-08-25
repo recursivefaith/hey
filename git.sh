@@ -246,60 +246,72 @@ perform_commit_and_push_actions() {
   
   # --- Start of user requested insertion logic (using awk) ---
   # Awk script to find the "---" line followed by a "#" heading (with optional empty lines in between),
-  # and insert the new entry BEFORE the "---" line.
+  # then finds the nearest non-blank line before "---", and inserts the new entry AFTER that line.
   # If no such marker sequence is found, the entry is appended to the end of the file.
-  local awk_script='
+  local awk_script=$(cat <<'AWK_SCRIPT_EOF'
 BEGIN {
     new_entry = ARGV[1];
     delete ARGV[1];
     found_marker_sequence = 0
-    insert_at_line_num = 0 # This will be the line number *before* which to insert
+    actual_insertion_line_num = 0
     line_count = 0
-    dashes_line_num = 0 # To store the line number of "---"
+    dashes_line_candidate_num = 0
 }
 
 {
     line_count++;
     lines[line_count] = $0
 
-    # If current line is "---", record its line number
     if ($0 ~ /^[[:space:]]*---[[:space:]]*$/) {
-        dashes_line_num = line_count
+        dashes_line_candidate_num = line_count
     }
-    # If dashes were previously found, and current line is a heading
-    # Also allows for empty lines between "---" and the heading.
-    else if (dashes_line_num > 0 && $0 ~ /^[[:space:]]*#.*/) {
-        # Sequence found: "---" (at dashes_line_num) followed by heading (at line_count)
-        # We want to insert *before* the "---" line, so insert_at_line_num is dashes_line_num
-        insert_at_line_num = dashes_line_num
-        found_marker_sequence = 1
-        dashes_line_num = 0 # Reset after finding sequence
+    else if (dashes_line_candidate_num > 0 && $0 ~ /^[[:space:]]*#.*/) {
+        if (found_marker_sequence == 0) {
+            found_marker_sequence = 1
+            
+            target_line_for_scan = dashes_line_candidate_num - 1
+            while (target_line_for_scan >= 1 && lines[target_line_for_scan] ~ /^[[:space:]]*$/) {
+                target_line_for_scan--
+            }
+
+            if (target_line_for_scan >= 1) {
+                actual_insertion_line_num = target_line_for_scan
+            } else {
+                actual_insertion_line_num = 0 
+            }
+        }
+        dashes_line_candidate_num = 0
     }
-    # If the current line is NOT empty and NOT a dash line, AND we previously saw dashes,
-    # it means the sequence is broken, so reset dashes_line_num.
-    # This ensures that only empty lines are allowed between "---" and "# Heading".
-    else if ($0 !~ /^[[:space:]]*$/ && dashes_line_num > 0 && $0 !~ /^[[:space:]]*---[[:space:]]*$/) {
-        dashes_line_num = 0
+    else if ($0 !~ /^[[:space:]]*$/ && dashes_line_candidate_num > 0) {
+        dashes_line_candidate_num = 0
     }
 }
 
 END {
     if (found_marker_sequence) {
         for (i = 1; i <= line_count; i++) {
-            if (i == insert_at_line_num) {
-                print new_entry # Insert the new entry BEFORE the target line
+            if (i == actual_insertion_line_num) {
+                print lines[i]
+                print new_entry
+            } else if (actual_insertion_line_num == 0 && i == 1) {
+                print new_entry
+                print lines[i]
+            } else {
+                print lines[i]
             }
-            print lines[i]
+        }
+        if (actual_insertion_line_num == 0 && line_count == 0 && !found_marker_sequence) {
+            print new_entry
         }
     } else {
-        # If no marker sequence found, append to the end of the file.
         for (i = 1; i <= line_count; i++) {
             print lines[i]
         }
         print new_entry
     }
 }
-'
+AWK_SCRIPT_EOF
+)
 
   debug_log "Attempting to insert history entry: '$history_entry' into '$HISTORY_FILE' using awk."
   # Use awk with temporary files for cross-platform compatibility for in-place editing.
