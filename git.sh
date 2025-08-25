@@ -245,47 +245,49 @@ perform_commit_and_push_actions() {
   local history_entry="**${current_time}** \`<${repo_identifier}.git>\` ${history_entry_message_sanitized}"
   
   # --- Start of user requested insertion logic (using awk) ---
-  # Awk script to find the "---" line followed by a "#" heading, and insert the new entry below it.
+  # Awk script to find the "---" line immediately followed by a "#" heading,
+  # and insert the new entry BEFORE the "---" line.
   # If no such marker sequence is found, the entry is appended to the end of the file.
   local awk_script='
 BEGIN {
-    new_entry = ARGV[1];      # Get new entry from argument
-    delete ARGV[1];           # Remove consumed argument
+    new_entry = ARGV[1];
+    delete ARGV[1];
     found_marker_sequence = 0
-    insert_after_line_num = 0
+    insert_at_line_num = 0 # This will be the line number *before* which to insert
     line_count = 0
-    dashes_line_num = 0 # To store the line number of "---"
+    prev_line_was_dashes = 0 # Flag to check if previous line was "---"
 }
 
 {
     line_count++;
     lines[line_count] = $0
 
-    # Check for a line containing exactly "---" (with optional surrounding spaces)
-    if ($0 ~ /^[[:space:]]*---[[:space:]]*$/) {
-        dashes_line_num = line_count
-    } else if (dashes_line_num == line_count - 1 && $0 ~ /^[[:space:]]*#[[:graph:]]/) {
-        # This means the previous line was "---" and this is a heading line.
-        # This is our insertion point.
-        insert_after_line_num = line_count
+    # Check if the current line is a heading AND the previous line was "---"
+    if (prev_line_was_dashes == 1 && $0 ~ /^[[:space:]]*#[[:graph:]]/) {
+        # The marker sequence is found: "---" (at line_count - 1) followed by heading (at line_count)
+        # We want to insert *before* the "---" line, so insert_at_line_num should be (line_count - 1)
+        insert_at_line_num = line_count - 1
         found_marker_sequence = 1
-        dashes_line_num = 0 # Reset so it doesn''t try to match another heading for this "---"
-    } else { # Merged onto one line to avoid bash parsing issues.
-        dashes_line_num = 0 # Reset if the "---" wasn''t followed by a heading
+        prev_line_was_dashes = 0 # Reset flag once sequence found
+    } else if ($0 ~ /^[[:space:]]*---[[:space:]]*$/) {
+        # Current line is "---", set flag for next iteration
+        prev_line_was_dashes = 1
+    } else {
+        # Neither a heading after "---" nor a "---" itself, reset flag
+        prev_line_was_dashes = 0
     }
 }
 
 END {
-    # If a marker sequence was found, insert after the identified heading line.
     if (found_marker_sequence) {
         for (i = 1; i <= line_count; i++) {
-            print lines[i]
-            if (i == insert_after_line_num) {
-                print new_entry
+            if (i == insert_at_line_num) {
+                print new_entry # Insert the new entry BEFORE the target line
             }
+            print lines[i]
         }
     } else {
-        # If no marker sequence was found, append to the end of the file.
+        # If no marker sequence found, append to the end of the file.
         for (i = 1; i <= line_count; i++) {
             print lines[i]
         }
