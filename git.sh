@@ -23,13 +23,13 @@ Usage: $0 [options] [optional_message_prefix]
 A script to generate Git commit messages using '$HEY_COMMAND' and manage commit history.
 
 Options:
-  [optional_message_prefix]  A string to prefix the AI-generated commit summary.
-  --debug                    Enable debug logging for git.sh and '$HEY_COMMAND'.
-  -h, --help                 Display this help message.
+  [optional_message_prefix]    A string to prefix the AI-generated commit summary.
+  --debug                      Enable debug logging for git.sh and '$HEY_COMMAND'.
+  -h, --help                   Display this help message.
 
 Environment Variables:
-  HISTORY     (Required) Your commit history log file path.
-  CHANGELOG   (Required) Your changelog log file path.
+  HISTORY      (Required) Your commit history log file path.
+  CHANGELOG    (Required) Your changelog log file path.
   GEMINI_API_KEY (Required by $HEY_COMMAND) Your Google Gemini API key.
   GEMINI_MODEL   (Optional, for $HEY_COMMAND) Default Gemini model to use.
 EOF
@@ -61,7 +61,7 @@ get_git_diff() {
   # This grep pattern covers M, A, D, R, C, U (staged, unstaged, and untracked)
   if ! git status --porcelain | grep -qE '^[MARCUD ]|^\?\?'; then
     echo "Error: No pending changes (staged, unstaged, or untracked) detected to summarize." >&2
-    echo "       Run 'git status' to see current state." >&2
+    echo "        Run 'git status' to see current state." >&2
     return 1
   fi
 
@@ -175,7 +175,7 @@ prompt_user_action() {
       echo "$MESSAGE_PREFIX"
       # Add a newline for visual separation in prompt if prefix doesn't end with one
       if [[ "$MESSAGE_PREFIX" != *$'\n'* ]] && [ -n "$PROPOSED_COMMIT_MESSAGE" ]; then
-          echo "" 
+          echo ""  
       fi
     fi
     echo "$PROPOSED_COMMIT_MESSAGE"
@@ -188,12 +188,12 @@ prompt_user_action() {
 
     case "$choice" in
       a) return 0 ;; # Accept
-      r) 
+      r)  
         echo "Regenerating commit message..."
         if ! generate_summary_with_hey; then
           echo "Error regenerating message. Please check the '$HEY_COMMAND' script or API key." >&2
           # Continue the loop to prompt again after error, allowing user to retry or cancel.
-          continue 
+          continue  
         fi
         ;; # Regenerate, loop again
       c) return 1 ;; # Cancel
@@ -244,70 +244,53 @@ perform_commit_and_push_actions() {
   local history_entry_message_sanitized=$(echo "$final_commit_message" | tr '\n' ' ' | sed 's/  */ /g')
   local history_entry="**${current_time}** \`<${repo_identifier}.git>\` ${history_entry_message_sanitized}"
   
-  # --- Start of user requested insertion logic (using awk) ---
-  # Awk script to find the "---" line followed by a "#" heading (with optional empty lines in between),
-  # then finds the nearest non-blank line before "---", and inserts the new entry AFTER that line.
-  # If no such marker sequence is found, the entry is appended to the end of the file.
+  # --- Start of updated insertion logic (using awk) ---
+  # Awk script to find the first '## Notes' heading, or the first '##' heading,
+  # and insert the new entry on the line immediately following it.
+  # If no such heading is found, the entry is appended to the end of the file.
   local awk_script=$(cat <<'AWK_SCRIPT_EOF'
 BEGIN {
     new_entry = ARGV[1];
     delete ARGV[1];
-    found_marker_sequence = 0
-    actual_insertion_line_num = 0
-    line_count = 0
-    dashes_line_candidate_num = 0
+    insertion_line = 0; # The line number *after* which to insert the new_entry
+    found_notes_heading = 0; # Flag to indicate if ## Notes was found
+    found_any_h2 = 0;    # Flag to indicate if any ## was found
+    line_count = 0;
 }
 
 {
     line_count++;
-    lines[line_count] = $0
+    lines[line_count] = $0;
 
-    if ($0 ~ /^[[:space:]]*---[[:space:]]*$/) {
-        dashes_line_candidate_num = line_count
+    if (found_notes_heading == 0 && $0 ~ /^[[:space:]]*##[[:space:]]+Notes[[:space:]]*$/) {
+        insertion_line = line_count + 1;
+        found_notes_heading = 1;
+        found_any_h2 = 1; # If notes heading is found, we also found an h2
     }
-    else if (dashes_line_candidate_num > 0 && $0 ~ /^[[:space:]]*#.*/) {
-        if (found_marker_sequence == 0) {
-            found_marker_sequence = 1
-            
-            target_line_for_scan = dashes_line_candidate_num - 1
-            while (target_line_for_scan >= 1 && lines[target_line_for_scan] ~ /^[[:space:]]*$/) {
-                target_line_for_scan--
-            }
-
-            if (target_line_for_scan >= 1) {
-                actual_insertion_line_num = target_line_for_scan
-            } else {
-                actual_insertion_line_num = 0 
-            }
-        }
-        dashes_line_candidate_num = 0
-    }
-    else if ($0 !~ /^[[:space:]]*$/ && dashes_line_candidate_num > 0) {
-        dashes_line_candidate_num = 0
+    # Only look for a general ## if ## Notes hasn't been found yet
+    # And we haven't found any h2 yet (to get the *first* one)
+    else if (found_notes_heading == 0 && found_any_h2 == 0 && $0 ~ /^[[:space:]]*##[[:space:]]*.+/) {
+        insertion_line = line_count + 1;
+        found_any_h2 = 1; # Mark that we found *a* h2
     }
 }
 
 END {
-    if (found_marker_sequence) {
-        for (i = 1; i <= line_count; i++) {
-            if (i == actual_insertion_line_num) {
-                print lines[i]
-                print new_entry
-            } else if (actual_insertion_line_num == 0 && i == 1) {
-                print new_entry
-                print lines[i]
-            } else {
-                print lines[i]
-            }
+    if (insertion_line > 0) {
+        # Insert the entry after the determined line
+        for (i = 1; i < insertion_line; i++) {
+            print lines[i];
         }
-        if (actual_insertion_line_num == 0 && line_count == 0 && !found_marker_sequence) {
-            print new_entry
+        print new_entry;
+        for (i = insertion_line; i <= line_count; i++) {
+            print lines[i];
         }
     } else {
+        # If no suitable heading found, append to the end
         for (i = 1; i <= line_count; i++) {
-            print lines[i]
+            print lines[i];
         }
-        print new_entry
+        print new_entry;
     }
 }
 AWK_SCRIPT_EOF
@@ -333,7 +316,7 @@ AWK_SCRIPT_EOF
   fi
   mv "${CHANGELOG_FILE}.tmp" "$CHANGELOG_FILE" || { echo "Error: Failed to move temporary changelog file. Permissions issue?" >&2; return 1; }
   debug_log "History entry successfully inserted into '$CHANGELOG_FILE'."
-  # --- End of user requested insertion logic ---
+  # --- End of updated insertion logic ---
 
   # Stage changes (including the updated history file)
   echo ""
@@ -350,7 +333,7 @@ AWK_SCRIPT_EOF
   git commit -m "$final_commit_message"
   if [ $? -ne 0 ]; then
     echo "Error: 'git commit' failed. Push aborted." >&2
-    echo "       (Note: The message has been appended to history regardless, and history file staged if successful.)" >&2
+    echo "        (Note: The message has been appended to history regardless, and history file staged if successful.)" >&2
     return 1
   fi
   echo "Commit successful."
@@ -456,13 +439,13 @@ fi
 # `hey-gemini.sh` uses `jq` internally, so `git.sh` should check for it too.
 if ! command -v jq &>/dev/null; then 
     echo "Error: 'jq' command not found. Please ensure it's in your PATH." >&2
-    echo "       The '$HEY_COMMAND' script requires 'jq' for JSON processing." >&2
+    echo "        The '$HEY_COMMAND' script requires 'jq' for JSON processing." >&2
     exit 1
 fi
 # `awk` is now used for in-place editing logic.
 if ! command -v awk &>/dev/null; then
     echo "Error: 'awk' command not found. Please ensure it's in your PATH." >&2
-    echo "       The 'git.sh' script requires 'awk' for modifying history/changelog files." >&2
+    echo "        The 'git.sh' script requires 'awk' for modifying history/changelog files." >&2
     exit 1
 fi
 
