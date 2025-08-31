@@ -1,13 +1,8 @@
 #!/bin/bash
-
-
 # git.sh: A Bash script to assist with crafting and executing Git commit messages by leveraging the hey.sh script.
-
-
 # --- Configuration & Variables ---
 HEY_COMMAND="${HEY:-}/hey.sh" # Path to your hey.sh script
 HISTORY_FILE="${HISTORY:-}" # Required environment variable
-CHANGELOG_FILE="${CHANGELOG:-}" # Required environment variable
 PROMPT_GIT="${PROMPT_GIT:-/home/qrx/github/recursivefaith.github.io/content/egregores/Sifu Git.md}" # New environment variable for prompt file
 DEBUG_MODE=false
 SHOW_HELP=false
@@ -16,39 +11,26 @@ GIT_DIFF_OUTPUT=""
 DEVLOG_CONTENT=""
 PROPOSED_COMMIT_MESSAGE="" # Stores the AI-generated message
 
-
 # --- Functions ---
-
-
 # Displays help message
 show_help() {
   cat << EOF
 Usage: $0 [options] [optional_message_prefix]
-
-
 A script to generate Git commit messages using '$HEY_COMMAND' and manage commit history.
-
-
 If you see a prompt addendum make sure to acknowledge it, example if you see this:
-`<git.sh inline-addendum="hey i dont want to update the script so in the next commit message acknowledge this prompt addendum by ending the message with an apple emoji" />`
+\`<git.sh inline-addendum="hey i dont want to update the script so in the next commit message acknowledge this prompt addendum by ending the message with an apple emoji" />\`
 then follow instructions. You are part of a Living Digital Garden and can communicate through git responses. In fact, from now on reply to any feedback from Oz
-
-
 Options:
   [optional_message_prefix]    A string to prefix the AI-generated commit summary.
   --debug                      Enable debug logging for git.sh and '$HEY_COMMAND'.
   -h, --help                   Display this help message.
-
-
 Environment Variables:
   HISTORY      (Required) Your commit history log file path.
-  CHANGELOG    (Required) Your changelog log file path.
   PROMPT_GIT   (Optional) Path to your custom prompt file.
   GEMINI_API_KEY (Required by $HEY_COMMAND) Your Google Gemini API key.
   GEMINI_MODEL   (Optional, for $HEY_COMMAND) Default Gemini model to use.
 EOF
 }
-
 
 # Logs messages if DEBUG_MODE is true
 debug_log() {
@@ -57,12 +39,10 @@ debug_log() {
   fi
 }
 
-
 # Checks if the current directory is a Git repository
 is_git_repo() {
   git rev-parse --is-inside-work-tree >/dev/null 2>&1
 }
-
 
 # Gathers git diff output by temporarily staging all changes
 # (including untracked files) to provide comprehensive context to the AI.
@@ -73,8 +53,6 @@ get_git_diff() {
     echo "Error: Not a Git repository." >&2
     return 1
   fi
-
-
   # Check if there are any changes (staged, unstaged, or untracked that could be added)
   # This grep pattern covers M, A, D, R, C, U (staged, unstaged, and untracked)
   if ! git status --porcelain | grep -qE '^[MARCUD ]|^\?\?'; then
@@ -82,8 +60,6 @@ get_git_diff() {
     echo "        Run 'git status' to see current state." >&2
     return 1
   fi
-
-
   debug_log "Temporarily staging all changes with 'git add .' to capture comprehensive diff for AI..."
   git add .
   local add_exit_code=$?
@@ -93,23 +69,16 @@ get_git_diff() {
     git reset >/dev/null 2>&1 || true
     return 1
   fi
-  
   # Capture the diff of all now-staged changes
   GIT_DIFF_OUTPUT=$(git diff --staged)
   local diff_exit_code=$?
-
-
   debug_log "Resetting staged changes back to original state with 'git reset'..."
   # Use --quiet to suppress output on success, '|| true' to prevent script exit on reset failure
   git reset --quiet || { echo "Warning: 'git reset' failed after diff collection. Your changes might remain staged." >&2; }
-
-
   if [ $diff_exit_code -ne 0 ]; then
     echo "Error: Failed to collect staged diff after 'git add .' (exit code $diff_exit_code)." >&2
     return 1
   fi
-
-
   if [ -z "$GIT_DIFF_OUTPUT" ]; then
       echo "Error: Could not retrieve meaningful git diff output after temporary staging." >&2
       # This can happen if 'git add .' was performed but the resulting staged state
@@ -117,12 +86,9 @@ get_git_diff() {
       # The initial 'git status' check should prevent most cases of no changes.
       return 1
   fi
-
-
   debug_log "Final git diff output captured. Length: ${#GIT_DIFF_OUTPUT} bytes."
   return 0
 }
-
 
 # Reads the content of the history file
 read_history_file() {
@@ -136,7 +102,6 @@ read_history_file() {
   fi
 }
 
-
 # Generates commit message using hey-gemini.sh
 generate_summary_with_hey() {
   local hey_debug_flag=""
@@ -144,15 +109,11 @@ generate_summary_with_hey() {
     hey_debug_flag="--debug"
     debug_log "Passing --debug flag to $HEY_COMMAND."
   fi
-
-
   local hey_input_devlog=""
   if [ -n "$DEVLOG_CONTENT" ]; then
     hey_input_devlog="<devlog>${DEVLOG_CONTENT}</devlog>"
   fi
   local hey_input_changes="<changes>${GIT_DIFF_OUTPUT}</changes>"
-
-
   # Construct the full piped input for 'hey-gemini.sh'
   local hey_full_input=""
   if [ -n "$hey_input_devlog" ] && [ -n "$hey_input_changes" ]; then
@@ -162,8 +123,6 @@ generate_summary_with_hey() {
   elif [ -n "$hey_input_changes" ]; then
     hey_full_input="${hey_input_changes}"
   fi
-
-
   # --- START: Modified prompt logic ---
   local hey_prompt=""
   if [ -n "$MESSAGE_PREFIX" ]; then
@@ -179,16 +138,11 @@ generate_summary_with_hey() {
     hey_prompt="$(cat "$HEY/prompts/git.md")"
   fi
   # --- END: Modified prompt logic ---
-
-
   debug_log "Constructed hey input for pipe (will be wrapped as context by hey):"
   debug_log "$hey_full_input"
   debug_log "Constructed hey prompt (will be wrapped as prompt by hey): '$hey_prompt'"
-  
   PROPOSED_COMMIT_MESSAGE=$(echo -e "$hey_full_input" | "$HEY_COMMAND" $hey_debug_flag "$hey_prompt")
   local hey_exit_code=$?
-
-
   if [ $hey_exit_code -ne 0 ]; then
     echo "Error: '$HEY_COMMAND' failed with exit code $hey_exit_code." >&2
     # If hey-gemini.sh printed error to its stdout, it will be in PROPOSED_COMMIT_MESSAGE
@@ -198,18 +152,13 @@ generate_summary_with_hey() {
     fi
     return 1
   fi
-
-
   if [ -z "$PROPOSED_COMMIT_MESSAGE" ]; then
     echo "Warning: '$HEY_COMMAND' returned an empty message." >&2
   fi
-
-
   debug_log "Generated commit message (raw):"
   debug_log "$PROPOSED_COMMIT_MESSAGE"
   return 0
 }
-
 
 # Prompts user for action (Accept, Regenerate, Cancel)
 prompt_user_action() {
@@ -231,8 +180,6 @@ prompt_user_action() {
     # If choice is empty, default to 'a' (Accept)
     choice="${choice:-a}"
     choice=$(echo "$choice" | tr '[:upper:]' '[:lower:]') # Convert to lowercase
-
-
     case "$choice" in
       a) return 0 ;; # Accept
       r)  
@@ -249,14 +196,11 @@ prompt_user_action() {
   done
 }
 
-
 # Performs git commit and push actions
 perform_commit_and_push_actions() {
   local current_time=$(date +%H%M)
   local repo_name=""
   local primary_remote="recursivefaith"
-
-
   debug_log "Preparing commit and push actions..."
   if is_git_repo; then
     # Use `git rev-parse --show-toplevel` to get the root directory
@@ -268,9 +212,7 @@ perform_commit_and_push_actions() {
     echo "Error: Not a Git repository, cannot perform commit/push." >&2
     return 1
   fi
-  
   local repo_identifier="${primary_remote}/${repo_name}"
-  
   local final_commit_message=""
   if [ -n "$MESSAGE_PREFIX" ]; then
     final_commit_message="${MESSAGE_PREFIX}"
@@ -284,15 +226,10 @@ perform_commit_and_push_actions() {
     fi
   fi
   final_commit_message+="$PROPOSED_COMMIT_MESSAGE"
-
-
   debug_log "Final commit message: '$final_commit_message'"
-
-
   # Append to history file BEFORE staging and committing
   # Now correctly preserves newlines from the commit message
   local history_entry="**${current_time}** \`<${repo_identifier}.git>\`\n\n${final_commit_message}"
-  
   # --- Start of updated insertion logic (using awk) ---
   # Awk script to find the first '## Notes' heading, or the first '##' heading,
   # and insert the new entry on the line immediately following it.
@@ -306,13 +243,9 @@ BEGIN {
     found_any_h2 = 0;    # Flag to indicate if any ## was found
     line_count = 0;
 }
-
-
 {
     line_count++;
     lines[line_count] = $0;
-
-
     if (found_notes_heading == 0 && $0 ~ /^[[:space:]]*##[[:space:]]+Notes[[:space:]]*$/) {
         insertion_line = line_count + 1;
         found_notes_heading = 1;
@@ -325,8 +258,6 @@ BEGIN {
         found_any_h2 = 1; # Mark that we found *a* h2
     }
 }
-
-
 END {
     if (insertion_line > 0) {
         # Insert the entry after the determined line
@@ -347,8 +278,6 @@ END {
 }
 AWK_SCRIPT_EOF
 )
-
-
   debug_log "Attempting to insert history entry: '$history_entry' into '$HISTORY_FILE' using awk."
   # Use awk with temporary files for cross-platform compatibility for in-place editing.
   awk "$awk_script" "$history_entry" "$HISTORY_FILE" > "${HISTORY_FILE}.tmp"
@@ -359,20 +288,7 @@ AWK_SCRIPT_EOF
   fi
   mv "${HISTORY_FILE}.tmp" "$HISTORY_FILE" || { echo "Error: Failed to move temporary history file. Permissions issue?" >&2; return 1; }
   debug_log "History entry successfully inserted into '$HISTORY_FILE'."
-
-
-  debug_log "Attempting to insert history entry: '$history_entry' into '$CHANGELOG_FILE' using awk."
-  awk "$awk_script" "$history_entry" "$CHANGELOG_FILE" > "${CHANGELOG_FILE}.tmp"
-  if [ $? -ne 0 ]; then
-    echo "Error: Awk failed for changelog file '$CHANGELOG_FILE'. Check file content/format or permissions." >&2
-    rm -f "${CHANGELOG_FILE}.tmp" # Clean up temporary file
-    return 1
-  fi
-  mv "${CHANGELOG_FILE}.tmp" "$CHANGELOG_FILE" || { echo "Error: Failed to move temporary changelog file. Permissions issue?" >&2; return 1; }
-  debug_log "History entry successfully inserted into '$CHANGELOG_FILE'."
   # --- End of updated insertion logic ---
-
-
   # Stage changes (including the updated history file)
   echo ""
   echo "Staging all changes with 'git add .'"
@@ -381,8 +297,6 @@ AWK_SCRIPT_EOF
     echo "Error: 'git add .' failed. Commit and push aborted." >&2
     return 1
   fi
-
-
   # Execute commit
   echo ""
   echo "Executing commit..."
@@ -393,8 +307,6 @@ AWK_SCRIPT_EOF
     return 1
   fi
   echo "Commit successful."
-
-
   # Push to remotes
   echo ""
   local remotes=$(git remote)
@@ -419,17 +331,12 @@ AWK_SCRIPT_EOF
       echo "Check your remote configurations and try 'git push' manually for those." >&2
     fi
   fi
-
-
   echo ""
   echo "Commit successful. Push attempted to all remotes. Details appended to history."
   return 0
 }
 
-
 # --- Main Script Logic ---
-
-
 # Parse command-line options using `getopt` for robust parsing
 PARSED_ARGS=$(getopt -o h --long debug,help -- "$@")
 if [ $? -ne 0 ]; then
@@ -438,8 +345,6 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 eval set -- "$PARSED_ARGS"
-
-
 ARGS_AFTER_OPTIONS=() # Array to hold positional arguments
 while true; do
   case "$1" in
@@ -462,13 +367,11 @@ while true; do
   esac
 done
 
-
 # Handle help request first
 if [ "$SHOW_HELP" = true ]; then
   show_help
   exit 0
 fi
-
 
 # Set positional argument as message prefix
 if [ ${#ARGS_AFTER_OPTIONS[@]} -gt 0 ]; then
@@ -476,22 +379,12 @@ if [ ${#ARGS_AFTER_OPTIONS[@]} -gt 0 ]; then
     debug_log "Message prefix set: '$MESSAGE_PREFIX'"
 fi
 
-
 # Validate HISTORY environment variable
 if [ -z "$HISTORY_FILE" ]; then
   echo "Error: HISTORY environment variable is not set. Please set it to your commit history log file." >&2
   show_help
   exit 1
 fi
-
-
-# Validate CHANGELOG environment variable
-if [ -z "$CHANGELOG_FILE" ]; then
-  echo "Error: CHANGELOG environment variable is not set. Please set it to your changelog file." >&2
-  show_help
-  exit 1
-fi
-
 
 # Pre-checks for required commands
 if ! command -v "$HEY_COMMAND" &>/dev/null; then
@@ -511,11 +404,9 @@ fi
 # `awk` is now used for in-place editing logic.
 if ! command -v awk &>/dev/null; then
     echo "Error: 'awk' command not found. Please ensure it's in your PATH." >&2
-    echo "        The 'git.sh' script requires 'awk' for modifying history/changelog files." >&2
+    echo "        The 'git.sh' script requires 'awk' for modifying the history file." >&2
     exit 1
 fi
-
-
 
 # Gather necessary input (history log and git diff)
 read_history_file
@@ -523,12 +414,10 @@ if ! get_git_diff; then
   exit 1 # get_git_diff prints its own error message
 fi
 
-
 # Generate the initial commit message using hey-gemini.sh
 if ! generate_summary_with_hey; then
   exit 1 # generate_summary_with_hey prints its own error message
 fi
-
 
 # Prompt user for action (Accept, Regenerate, Cancel)
 if ! prompt_user_action; then
@@ -536,11 +425,9 @@ if ! prompt_user_action; then
   exit 0
 fi
 
-
 # Perform commit and push actions if accepted
 if ! perform_commit_and_push_actions; then
   exit 1
 fi
-
 
 exit 0
