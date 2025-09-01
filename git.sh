@@ -249,27 +249,15 @@ perform_commit_and_push_actions() {
     return 1
   fi
   
-  local repo_identifier="${primary_remote}/${repo_name}"
-  
   local final_commit_message="$PROPOSED_COMMIT_MESSAGE"
 
   debug_log "Final commit message: '$final_commit_message'"
-
-  # Extract persona name from PERSONA_GIT path (everything after /content and before .md)
-  local persona_name=""
-  if [[ "$PERSONA_GIT" =~ /content/(.+)\.md$ ]]; then
-    persona_name="[[${BASH_REMATCH[1]}]]"
-  else
-    persona_name="[[unknown]]"
-    debug_log "Could not parse persona name from '$PERSONA_GIT'. Using '[[unknown]]'."
-  fi
-  debug_log "Persona name for history entry: '$persona_name'"
 
   # Append to history file BEFORE staging and committing
   # Replace newlines in the message for a single line in the history entry.
   # Use space as replacement for better readability in simple log file.
   local history_entry_message_sanitized=$(echo "$final_commit_message" | tr '\n' ' ' | sed 's/  */ /g')
-  local history_entry="${current_time} ${persona_name} \`<${repo_identifier}.git>\` ${history_entry_message_sanitized}"
+  local history_entry="${current_time} ${history_entry_message_sanitized}"
   
   # --- Start of updated insertion logic (using awk) ---
   # Awk script to find the first '## Notes' heading, or the first '##' heading,
