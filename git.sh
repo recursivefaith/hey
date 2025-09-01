@@ -5,7 +5,7 @@
 # --- Configuration & Variables ---
 HEY_COMMAND="${HEY:-}/hey.sh" # Path to your hey.sh script
 HISTORY_FILE="${HISTORY:-}" # Required environment variable
-PERSONA_GIT="${PERSONA_GIT:-/home/qrx/github/recursivefaith.github.io/content/egrebear/Adam.md}"
+PERSONA_GIT="${PERSONA_GIT:-/home/qrx/github/recursivefaith.github.io/content/thoughtforms/Adam.md}"
 DEBUG_MODE=false
 SHOW_HELP=false
 PROMPT_ADDENDUM=""
