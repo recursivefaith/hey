@@ -5,11 +5,13 @@
 # --- Configuration & Variables ---
 HEY_COMMAND="${HEY:-}/hey.sh" # Path to your hey.sh script
 HISTORY_FILE="${HISTORY:-}" # Required environment variable
+PERSONA_GIT="${PERSONA_GIT:-/home/qrx/github/recursivefaith.github.io/content/egrebear/Adam.md}"
 DEBUG_MODE=false
 SHOW_HELP=false
 PROMPT_ADDENDUM=""
 GIT_DIFF_OUTPUT=""
 DEVLOG_CONTENT=""
+PERSONA_CONTENT=""
 PROPOSED_COMMIT_MESSAGE="" # Stores the AI-generated message
 
 # --- Functions ---
@@ -32,6 +34,7 @@ Options:
 
 Environment Variables:
   HISTORY      (Required) Your commit history log file path.
+  PERSONA_GIT  (Optional) Path to persona file for LLM context (default: /home/qrx/github/recursivefaith.github.io/content/egrebear/Adam.md).
   GEMINI_API_KEY (Required by $HEY_COMMAND) Your Google Gemini API key.
   GEMINI_MODEL   (Optional, for $HEY_COMMAND) Default Gemini model to use.
 EOF
@@ -114,6 +117,19 @@ read_history_file() {
   fi
 }
 
+# Reads the content of the persona file
+read_persona_file() {
+  debug_log "Reading persona file: $PERSONA_GIT"
+  if [ -f "$PERSONA_GIT" ]; then
+    PERSONA_CONTENT=$(cat "$PERSONA_GIT")
+    debug_log "Persona file read. Size: ${#PERSONA_CONTENT} bytes."
+  else
+    echo "Warning: Persona file '$PERSONA_GIT' not found. Proceeding without persona context." >&2
+    debug_log "Persona file '$PERSONA_GIT' not found or empty. Treating as empty."
+    PERSONA_CONTENT=""
+  fi
+}
+
 # Generates commit message using hey-gemini.sh
 generate_summary_with_hey() {
   local hey_debug_flag=""
@@ -122,20 +138,32 @@ generate_summary_with_hey() {
     debug_log "Passing --debug flag to $HEY_COMMAND."
   fi
 
+  local hey_input_persona=""
+  if [ -n "$PERSONA_CONTENT" ]; then
+    hey_input_persona="<persona>${PERSONA_CONTENT}</persona>"
+    debug_log "Persona content added to input: '$hey_input_persona'"
+  fi
+
   local hey_input_devlog=""
   if [ -n "$DEVLOG_CONTENT" ]; then
     hey_input_devlog="<devlog>${DEVLOG_CONTENT}</devlog>"
   fi
   local hey_input_changes="<changes>${GIT_DIFF_OUTPUT}</changes>"
 
-  # Construct the full piped input for 'hey-gemini.sh'
+  # Construct the full piped input for 'hey-gemini.sh', with persona first
   local hey_full_input=""
+  if [ -n "$hey_input_persona" ]; then
+    hey_full_input="${hey_input_persona}"
+    if [ -n "$hey_input_devlog" ] || [ -n "$hey_input_changes" ]; then
+      hey_full_input="${hey_full_input}\n"
+    fi
+  fi
   if [ -n "$hey_input_devlog" ] && [ -n "$hey_input_changes" ]; then
-    hey_full_input="${hey_input_devlog}\n${hey_input_changes}"
+    hey_full_input="${hey_full_input}${hey_input_devlog}\n${hey_input_changes}"
   elif [ -n "$hey_input_devlog" ]; then
-    hey_full_input="${hey_input_devlog}"
+    hey_full_input="${hey_full_input}${hey_input_devlog}"
   elif [ -n "$hey_input_changes" ]; then
-    hey_full_input="${hey_input_changes}"
+    hey_full_input="${hey_full_input}${hey_input_changes}"
   fi
 
   debug_log "Input for hey.sh: '$hey_full_input'"
@@ -227,11 +255,21 @@ perform_commit_and_push_actions() {
 
   debug_log "Final commit message: '$final_commit_message'"
 
+  # Extract persona name from PERSONA_GIT path (everything after /content and before .md)
+  local persona_name=""
+  if [[ "$PERSONA_GIT" =~ /content/(.+)\.md$ ]]; then
+    persona_name="[[${BASH_REMATCH[1]}]]"
+  else
+    persona_name="[[unknown]]"
+    debug_log "Could not parse persona name from '$PERSONA_GIT'. Using '[[unknown]]'."
+  fi
+  debug_log "Persona name for history entry: '$persona_name'"
+
   # Append to history file BEFORE staging and committing
   # Replace newlines in the message for a single line in the history entry.
   # Use space as replacement for better readability in simple log file.
   local history_entry_message_sanitized=$(echo "$final_commit_message" | tr '\n' ' ' | sed 's/  */ /g')
-  local history_entry="**${current_time}** \`<${repo_identifier}.git>\` ${history_entry_message_sanitized}"
+  local history_entry="${current_time} ${persona_name} \`<${repo_identifier}.git>\` ${history_entry_message_sanitized}"
   
   # --- Start of updated insertion logic (using awk) ---
   # Awk script to find the first '## Notes' heading, or the first '##' heading,
@@ -412,7 +450,8 @@ if ! command -v awk &>/dev/null; then
     exit 1
 fi
 
-# Gather necessary input (history log and git diff)
+# Gather necessary input (persona, history log, and git diff)
+read_persona_file
 read_history_file
 if ! get_git_diff; then
   exit 1 # get_git_diff prints its own error message
