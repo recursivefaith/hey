@@ -29,14 +29,14 @@ then follow instructions. You are part of a Living Digital Garden and can commun
 
 Options:
   [optional_prompt_addendum]    A string to augment the AI prompt for generating the commit summary.
-  --debug                      Enable debug logging for git.sh and '$HEY_COMMAND'.
-  -h, --help                   Display this help message.
+  --debug                       Enable debug logging for git.sh and '$HEY_COMMAND'.
+  -h, --help                    Display this help message.
 
 Environment Variables:
-  HISTORY      (Required) Your commit history log file path.
-  PERSONA_GIT  (Optional) Path to persona file for LLM context (default: /home/qrx/github/recursivefaith.github.io/content/egrebear/Adam.md).
+  HISTORY     (Required) Your commit history log file path.
+  PERSONA_GIT (Optional) Path to persona file for LLM context (default: /home/qrx/github/recursivefaith.github.io/content/egrebear/Adam.md).
   GEMINI_API_KEY (Required by $HEY_COMMAND) Your Google Gemini API key.
-  GEMINI_MODEL   (Optional, for $HEY_COMMAND) Default Gemini model to use.
+  GEMINI_MODEL    (Optional, for $HEY_COMMAND) Default Gemini model to use.
 EOF
 }
 
@@ -254,10 +254,8 @@ perform_commit_and_push_actions() {
   debug_log "Final commit message: '$final_commit_message'"
 
   # Append to history file BEFORE staging and committing
-  # Replace newlines in the message for a single line in the history entry.
-  # Use space as replacement for better readability in simple log file.
-  local history_entry_message_sanitized=$(echo "$final_commit_message" | tr '\n' ' ' | sed 's/  */ /g')
-  local history_entry="**${current_time}** ${history_entry_message_sanitized}"
+  # The message is now kept with line breaks for better formatting.
+  local history_entry="**${current_time}**\n\n${final_commit_message}"
   
   # --- Start of updated insertion logic (using awk) ---
   # Awk script to find the first '## Notes' heading, or the first '##' heading,
