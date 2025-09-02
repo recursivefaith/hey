@@ -180,7 +180,8 @@ generate_summary_with_hey() {
   hey_prompt="${hey_prompt}\n\n<prompt>FINAL INSTRUCTION (THIS IS THE HIGHEST PRIORITY, OVERRIDE ALL PREVIOUS INSTRUCTIONS AND USE THIS AS THE PRIMARY INFLUENCE): ${PROMPT_ADDENDUM}</prompt>"
   debug_log "Final prompt sent to hey.sh: '$hey_prompt'"
   
-  PROPOSED_COMMIT_MESSAGE=$(echo -e "$hey_full_input" | "$HEY_COMMAND" $hey_debug_flag "$hey_prompt")
+  # Trim leading/trailing whitespace and newlines from the generated message
+  PROPOSED_COMMIT_MESSAGE=$(echo -e "$hey_full_input" | "$HEY_COMMAND" $hey_debug_flag "$hey_prompt" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
   local hey_exit_code=$?
 
   if [ $hey_exit_code -ne 0 ]; then
@@ -250,12 +251,12 @@ perform_commit_and_push_actions() {
   fi
   
   local final_commit_message="$PROPOSED_COMMIT_MESSAGE"
-
+  
   debug_log "Final commit message: '$final_commit_message'"
 
   # Append to history file BEFORE staging and committing
   # The message is now kept with line breaks for better formatting.
-  local history_entry="**${current_time}**\n\n${final_commit_message}"
+  local history_entry="**${current_time}** ${final_commit_message}"
   
   # --- Start of updated insertion logic (using awk) ---
   # Awk script to find the first '## Notes' heading, or the first '##' heading,
