@@ -276,7 +276,7 @@ BEGIN {
     line_count++;
     lines[line_count] = $0;
 
-    if (found_notes_heading == 0 && $0 ~ /^[[:space:]]*##[[:space:]]+Notes[[:space:]]*$/) {
+    if (found_notes_heading == 0 && $0 ~ /^[[:space:]]*###[[:space:]]+Notes[[:space:]]*$/) {
         insertion_line = line_count + 1;
         found_notes_heading = 1;
         found_any_h2 = 1; # If notes heading is found, we also found an h2
